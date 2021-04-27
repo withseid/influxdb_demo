@@ -84,36 +84,34 @@ func queryData(client influxdb2.Client) {
 	query := `
 	dataset = from(bucket: "market_data")
 	|> range(start: -1y)
-	|> filter(fn: (r) => r["_measurement"] == "market_data_v1" and r["_field"] == "pe" and r["company_id"] == "10202")
+	|> filter(fn: (r) => r["_measurement"] == "market_data_v2" and r["company_id"] == "10005")
+	|> filter(fn: (r) => r["_field"] == "pe")
+	|> drop(columns: ["_field", "_measurement"])
 	|> window(every: 1w, period: 5d, offset: 2d)
-	
-	avg = dataset
+  
+  avg = dataset
 	|> mean()
 	|> set(key: "sign", value: "avg")
-	|> drop(columns: ["_field", "_measurement", "entity_id", "entity_type"])
-	
-	first = dataset
-	|> drop(columns: ["_field", "_measurement"])
+  
+  fi = dataset
 	|> first()
-	|> set(key: "sign", value: "first")
-	
-	last = dataset
-	|> drop(columns: ["_field", "_measurement"])
+	|> set(key: "sign", value: "fi")
+  
+  la = dataset
 	|> last()
-	|> set(key: "sign", value: "last")
-	
-	max = dataset
-	|> drop(columns: ["_time", "_field", "_measurement"])
+	|> set(key: "sign", value: "la")
+  
+  ma = dataset
 	|> max()
 	|> set(key: "sign", value: "max")
-	
-	min = dataset
-	|> drop(columns: ["_time", "_field", "_measurement"])
+  
+  mi = dataset
 	|> min()
 	|> set(key: "sign", value: "min")
-	
-	union(tables: [avg, first, last, max, min])
+  
+  union(tables: [avg, fi, la, ma, mi])
 	|> group(columns: ["sign"])
+  //   |> filter(fn: (r) => r.sign == "avg")
 	`
 	// Get query client
 	queryAPI := client.QueryAPI(org)
