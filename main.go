@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -12,8 +13,10 @@ import (
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 )
 
-const token = "s4fe-AJ0c6uMfK_7lhCNelgkVDKuPDUdKhaaGnsWDYWCtVRLwSi4jNUWu3fVPqwxO9SIFTOt1DimTe4NWvPmBQ=="
-const bucket = "market_data"
+const token = "p0_sYwo-A72-AVyqGxjtrfINB52iyFRmhJayigj70G-bZvNTC2lCxH1SvLBwO4-ayHRfv-61D9YyXrYcDN2HTg=="
+
+// const bucket = "secondary_market"
+const bucket = "test1"
 const org = "rime"
 
 type Node struct {
@@ -28,12 +31,17 @@ type Node struct {
 
 func main() {
 
-	client := influxdb2.NewClient("http://192.168.88.11:8286/", token)
-
+	client := influxdb2.NewClient("http://49.234.231.143:8086/", token)
 	defer client.Close()
-	writeData(client)
+	writeData2(client)
 	// queryData(client)
-
+	// queryData2(client)
+	// date := "20190101"
+	// cur, err := toTrueTime(date)
+	// if err != nil {
+	// 	return
+	// }
+	// fmt.Println(cur)
 }
 
 func writeData(client influxdb2.Client) {
@@ -42,7 +50,7 @@ func writeData(client influxdb2.Client) {
 	start := time.Now()
 	threadArray := make(chan int, 10)
 
-	for i := 0; i < 3600; i++ {
+	for i := 0; i < 20; i++ {
 
 		day := int(time.Now().AddDate(0, 0, -i).Weekday())
 		if day == 0 || day == 6 {
@@ -57,13 +65,15 @@ func writeData(client influxdb2.Client) {
 			}()
 
 			points := make([]*write.Point, 0)
-			for j := 10000; j < 20000; j++ {
-				p := influxdb2.NewPointWithMeasurement("market_data_v2").
+			for j := 10000; j < 10010; j++ {
+				p := influxdb2.NewPointWithMeasurement("market_data_v1").
 					AddTag("company_id", strconv.Itoa(j)).
 					AddField("pe", genFloatNum(1, 40)).
 					AddField("pb", genFloatNum(1, 70)).
 					AddField("ps", genFloatNum(1, 70)).
+					AddField("pa", genFloatNum(1, 90)).
 					SetTime(time.Now().AddDate(0, 0, -index))
+					// Setime
 				points = append(points, p)
 			}
 			fmt.Printf("day %d insert into data start\n", index)
@@ -72,7 +82,6 @@ func writeData(client influxdb2.Client) {
 			fmt.Printf("day %d insert into data end\n", index)
 
 		}(i)
-
 	}
 
 	elapsed := time.Since(start)
@@ -111,7 +120,6 @@ func queryData(client influxdb2.Client) {
   
   union(tables: [avg, fi, la, ma, mi])
 	|> group(columns: ["sign"])
-  //   |> filter(fn: (r) => r.sign == "avg")
 	`
 	// Get query client
 	queryAPI := client.QueryAPI(org)
@@ -206,4 +214,106 @@ func AssignmentNode(sign interface{}, value interface{}, node *Node) {
 	default:
 
 	}
+}
+
+func toTrueTime(date string) (time.Time, error) {
+	timeString := "20060102"
+	loc, _ := time.LoadLocation("Local")
+	if len(date) == 8 {
+		return time.ParseInLocation(timeString, string(date), loc)
+	}
+	if len(date) == 6 {
+		return time.ParseInLocation(timeString[:6], string(date), loc)
+	}
+	if len(date) == 4 {
+		return time.ParseInLocation(timeString[:4], string(date), loc)
+	}
+	return time.Time{}, errors.New("time transcode error")
+}
+
+func queryData2(client influxdb2.Client) {
+
+	query := `
+	from(bucket:"test1")
+	|> range(start:-10y)
+	|> filter(fn: (r)=> 
+    r._measurement == "market_data" and 
+    r._field == "pe" and 
+    r.company_id == "10001"
+)
+	`
+	// Get query client
+	queryAPI := client.QueryAPI(org)
+
+	// get QueryTableResult
+	result, err := queryAPI.Query(context.Background(), query)
+
+	if err != nil {
+		return
+	}
+
+	for result.Next() {
+		fmt.Println(result.Record().Time().Local())
+	}
+}
+
+func writeData2(client influxdb2.Client) {
+	// dates := []string{"20210505", "20210506"}
+	writeAPI := client.WriteAPIBlocking(org, bucket)
+	// points := make([]*write.Point, 0)
+	// for i := 0; i < len(dates); i++ {
+	// 	toTrueDate, _ := toTrueTime(dates[i])
+	// 	p := influxdb2.NewPointWithMeasurement("market_data_v6").
+	// 		AddTag("company_id", "10001").
+	// 		AddField("pe", i+2).
+	// 		AddField("pb", i+2).
+	// 		AddField("ps", i+2).
+	// 		AddField("pa", i+2).
+	// 		SetTime(toTrueDate)
+	// 	points = append(points, p)
+	// }
+	// for i := 0; i < len(points); i++ {
+	// 	fmt.Println(points[i].Time())
+	// }
+	// writeAPI.WritePoint(context.Background(), points...)
+	start := time.Now()
+	threadArray := make(chan int, 10)
+
+	for i := 0; i < 20; i++ {
+
+		day := int(time.Now().AddDate(0, 0, -i).Weekday())
+		if day == 0 || day == 6 {
+			continue
+		}
+
+		threadArray <- i
+		go func(index int) {
+
+			defer func() {
+				<-threadArray
+			}()
+
+			points := make([]*write.Point, 0)
+			for j := 10000; j < 10010; j++ {
+				p := influxdb2.NewPointWithMeasurement("market_data_v6").
+					AddTag("company_id", strconv.Itoa(j)).
+					AddField("pe", genFloatNum(1, 40)).
+					AddField("pb", genFloatNum(1, 70)).
+					AddField("ps", genFloatNum(1, 70)).
+					AddField("pa", genFloatNum(1, 90)).
+					SetTime(time.Now().AddDate(0, 0, -index))
+					// Setime
+				points = append(points, p)
+			}
+			fmt.Printf("day %d insert into data start\n", index)
+			fmt.Printf("total count: %+v\n", len(points))
+			writeAPI.WritePoint(context.Background(), points...)
+			fmt.Printf("day %d insert into data end\n", index)
+
+		}(i)
+	}
+
+	elapsed := time.Since(start)
+	fmt.Println("插入10000 * 7000 条数据花费时间:", elapsed)
+
 }
