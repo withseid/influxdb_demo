@@ -6,6 +6,7 @@ import (
 
 type ConfigType struct {
 	SecondaryMarketConfig cfg.MySQLConfiguration
+	InfluxConfig          cfg.InfluxConfiguration
 }
 
 var CONFIG ConfigType

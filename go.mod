@@ -13,3 +13,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gorm.io/gorm v1.21.9
 )
+
+
+replace github.com/lee0720/nuwa v0.0.2 => /home/lilh/learn/nuwa

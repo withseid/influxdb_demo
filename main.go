@@ -3,21 +3,26 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"math/rand"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
+	config "github.com/lee0720/nuwa/pkg/config"
+	cfg "gitlab.com/lilh/influx-demo/internal/config"
+	"gitlab.com/lilh/influx-demo/internal/utils"
 )
 
-const token = "p0_sYwo-A72-AVyqGxjtrfINB52iyFRmhJayigj70G-bZvNTC2lCxH1SvLBwO4-ayHRfv-61D9YyXrYcDN2HTg=="
+// const token = "p0_sYwo-A72-AVyqGxjtrfINB52iyFRmhJayigj70G-bZvNTC2lCxH1SvLBwO4-ayHRfv-61D9YyXrYcDN2HTg=="
 
 // const bucket = "secondary_market"
-const bucket = "test1"
-const org = "rime"
+// const bucket = "test1"
+// const org = "rime"
 
 type Node struct {
 	Start string
@@ -29,11 +34,21 @@ type Node struct {
 	Min   float64
 }
 
-func main() {
+var configFileName = flag.String("cfn", "config", "name of config file")
+var configFilePath = flag.String("cfp", "./configs/", "path of config file")
 
-	client := influxdb2.NewClient("http://49.234.231.143:8086/", token)
-	defer client.Close()
-	writeData2(client)
+func main() {
+	flag.Parse()
+	err := config.InitConfiguration(*configFileName, strings.Split(*configFilePath, ","), &cfg.CONFIG)
+	if err != nil {
+		panic(err)
+	}
+	utils.InitSecondaryMarketInflux()
+
+	// client := influxdb2.NewClient("http://49.234.231.143:8086/", token)
+	defer utils.SecondaryMarketInfluxClient.Close()
+
+	writeData(utils.SecondaryMarketInfluxClient)
 	// queryData(client)
 	// queryData2(client)
 	// date := "20190101"
@@ -46,7 +61,7 @@ func main() {
 
 func writeData(client influxdb2.Client) {
 
-	writeAPI := client.WriteAPIBlocking(org, bucket)
+	writeAPI := client.WriteAPIBlocking(cfg.CONFIG.InfluxConfig.Org, cfg.CONFIG.InfluxConfig.Bucket)
 	start := time.Now()
 	threadArray := make(chan int, 10)
 
@@ -122,7 +137,7 @@ func queryData(client influxdb2.Client) {
 	|> group(columns: ["sign"])
 	`
 	// Get query client
-	queryAPI := client.QueryAPI(org)
+	queryAPI := client.QueryAPI(cfg.CONFIG.InfluxConfig.Org)
 
 	maps := make(map[string]*Node, 0)
 
@@ -243,7 +258,7 @@ func queryData2(client influxdb2.Client) {
 )
 	`
 	// Get query client
-	queryAPI := client.QueryAPI(org)
+	queryAPI := client.QueryAPI(cfg.CONFIG.InfluxConfig.Org)
 
 	// get QueryTableResult
 	result, err := queryAPI.Query(context.Background(), query)
@@ -259,7 +274,7 @@ func queryData2(client influxdb2.Client) {
 
 func writeData2(client influxdb2.Client) {
 	// dates := []string{"20210505", "20210506"}
-	writeAPI := client.WriteAPIBlocking(org, bucket)
+	writeAPI := client.WriteAPIBlocking(cfg.CONFIG.InfluxConfig.Org, cfg.CONFIG.InfluxConfig.Bucket)
 	// points := make([]*write.Point, 0)
 	// for i := 0; i < len(dates); i++ {
 	// 	toTrueDate, _ := toTrueTime(dates[i])

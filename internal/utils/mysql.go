@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
+var BatchSize = 200 * 10
 var SecondaryMarketDB *gorm.DB
 
 func InitSecondaryMarketMysql() {

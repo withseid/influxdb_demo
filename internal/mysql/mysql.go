@@ -2,7 +2,6 @@ package mysql
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
@@ -19,19 +18,24 @@ func SyncMysqlData() error {
 	if err != nil {
 		return err
 	}
-	// threadArray := make(chan struct{}, 10)
-	var wg sync.WaitGroup
+	threadArray := make(chan struct{}, 10)
+	// var wg sync.WaitGroup
 
 	errList := make([]error, 0)
 	for index, companyName := range companyNameList {
+
+		if index == 0 {
+			continue
+		}
+
 		marketDatas := make([]models.MarketData, 0)
-		wg.Add(1)
-		// threadArray <- struct{}{}
+		// wg.Add(1)
+		threadArray <- struct{}{}
 		entityID := uuid.NewV4().String()
 		go func(Name string, ID string, cur int) {
 			defer func() {
-				wg.Done()
-				// <-threadArray
+				// wg.Done()
+				<-threadArray
 			}()
 
 			for i := 0; i < 1000; i++ {
@@ -61,7 +65,7 @@ func SyncMysqlData() error {
 		}(companyName, entityID, index)
 
 	}
-	wg.Wait()
+	// wg.Wait()
 	return utils.ErrListToError(errList)
 
 }
@@ -79,8 +83,5 @@ func getCompanyNameList() ([]string, error) {
 		fmt.Println(err)
 		return nil, err
 	}
-	// for _, v := range cols[2] {
-	// 	fmt.Println(v)
-	// }
 	return cols[2], nil
 }
