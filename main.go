@@ -5,6 +5,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
+	"math"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -45,10 +47,13 @@ func main() {
 	}
 	utils.InitSecondaryMarketInflux()
 
-	// client := influxdb2.NewClient("http://49.234.231.143:8086/", token)
 	defer utils.SecondaryMarketInfluxClient.Close()
 
-	writeData(utils.SecondaryMarketInfluxClient)
+	queryData4(utils.SecondaryMarketInfluxClient)
+
+	// writeData(utils.SecondaryMarketInfluxClient)
+
+	// DeleteData(utils.SecondaryMarketInfluxClient)
 	// queryData(client)
 	// queryData2(client)
 	// date := "20190101"
@@ -57,6 +62,116 @@ func main() {
 	// 	return
 	// }
 	// fmt.Println(cur)
+}
+
+func queryData4(client influxdb2.Client) {
+
+	query := `
+
+	dataset = from(bucket: "secondary_market")
+	|> range(start: -3y)
+	|> filter(fn: (r) => r["_measurement"] == "market_data_v1")
+	|> filter(fn: (r) => r["_field"] == "pe")
+	|> filter(fn: (r) => r["security_entity_id"] == "01cc2c54-089b-494b-9c20-96bfd3028206")
+	|> drop(columns: ["_field", "_measurement"])
+	|> window(every: 1mo)
+  
+	dataset
+	|> mean()  
+	`
+
+	// Get query client
+	queryAPI := client.QueryAPI(cfg.CONFIG.InfluxConfig.Org)
+
+	// nodes := make([]Node, 0)
+
+	// get QueryTableResult
+	result, err := queryAPI.Query(context.Background(), query)
+
+	if err != nil {
+		return
+	}
+
+	count := 0
+
+	for result.Next() {
+		count++
+	}
+	fmt.Println(count)
+}
+
+func queryData3(client influxdb2.Client) {
+
+	query := `
+
+	dataset = from(bucket: "secondary_market")
+	|> range(start: -3y)
+	|> filter(fn: (r) => r["_measurement"] == "market_data_v1")
+	|> filter(fn: (r) => r["_field"] == "pe")
+	|> filter(fn: (r) => r["security_entity_id"] == "01cc2c54-089b-494b-9c20-96bfd3028206")
+	|> drop(columns: ["_field", "_measurement"])
+	|> window(every: 3mo)
+  
+  avg = dataset
+	|> mean()
+  
+  first = dataset
+	|> first()
+  
+  last = dataset
+	|> last()
+  
+  max = dataset
+	|> drop(columns: ["_time"])
+	|> max()
+  
+  min = dataset
+	|> drop(columns: ["_time"])
+	|> min()
+  
+  temp1 = join(tables: {d1: first,d2: last}, on :["security_entity_id","_start","_stop"])
+	|> rename(columns: {_value_d1: "first", _value_d2: "last"})
+  
+  temp2 = join(tables: {d3:max,d4:min}, on: ["security_entity_id","_start","_stop"])
+  |> rename(columns: {_value_d3: "max", _value_d4: "min"})
+  
+  temp3 = join(tables:{t1: temp2,d5:avg}, on:["security_entity_id","_start","_stop"])
+  |> rename(columns: {_value: "avg"})
+  
+  temp4 = join(tables:{t4:temp1,t3:temp3}, on:["security_entity_id","_start","_stop"])
+  |> rename(columns: {_time_d1: "start", _time_d2: "stop"})
+  |> drop(columns: ["_start","_stop"])
+  
+  temp4
+	`
+
+	// Get query client
+	queryAPI := client.QueryAPI(cfg.CONFIG.InfluxConfig.Org)
+
+	nodes := make([]Node, 0)
+
+	// get QueryTableResult
+	result, err := queryAPI.Query(context.Background(), query)
+
+	if err != nil {
+		return
+	}
+
+	for result.Next() {
+		node := Node{
+			Start: result.Record().ValueByKey("start").(time.Time).Format("2006-01-02"),
+			Stop:  result.Record().ValueByKey("stop").(time.Time).Format("2006-01-02"),
+			First: toFixed(result.Record().ValueByKey("first").(float64), 2),
+			Last:  toFixed(result.Record().ValueByKey("last").(float64), 2),
+			Min:   toFixed(result.Record().ValueByKey("min").(float64), 2),
+			Max:   toFixed(result.Record().ValueByKey("max").(float64), 2),
+			Avg:   toFixed(result.Record().ValueByKey("avg").(float64), 2),
+		}
+		nodes = append(nodes, node)
+	}
+	for _, node := range nodes {
+		fmt.Printf("node: %+v\n", node)
+	}
 }
 
 func writeData(client influxdb2.Client) {
@@ -103,6 +218,15 @@ func writeData(client influxdb2.Client) {
 	fmt.Println("插入10000 * 7000 条数据花费时间:", elapsed)
 }
 
+func round(num float64) int {
+	return int(num + math.Copysign(0.5, num))
+}
+
+func toFixed(num float64, precision int) float64 {
+	output := math.Pow(10, float64(precision))
+	return float64(round(num*output)) / output
+}
+
 func queryData(client influxdb2.Client) {
 
 	query := `
@@ -136,6 +260,7 @@ func queryData(client influxdb2.Client) {
   union(tables: [avg, fi, la, ma, mi])
 	|> group(columns: ["sign"])
 	`
+
 	// Get query client
 	queryAPI := client.QueryAPI(cfg.CONFIG.InfluxConfig.Org)
 
@@ -247,16 +372,30 @@ func toTrueTime(date string) (time.Time, error) {
 }
 
 func queryData2(client influxdb2.Client) {
+	startTime := int64(1557646863)
+	endTime := int64(1620891663)
+	fmt.Println(utils.UnixFormat(startTime), utils.UnixFormat(endTime))
+	// a := 1
+	// query := fmt.Sprintf(`
+	// from(bucket: "secondary_market")
+	// 	|> range(start: %s, stop: %s)
+	// 	|> filter(fn: (r) => r["_measurement"] == "market_data_v1")
+	// 	|> filter(fn: (r) => r["_field"] == "pb")
+	// 	|> filter(fn: (r) => r["security_entity_id"] == "01cc2c54-089b-494b-9c20-96bfd3028206")`, utils.UnixFormat(startTime), utils.UnixFormat(endTime))
 
-	query := `
-	from(bucket:"test1")
-	|> range(start:-10y)
-	|> filter(fn: (r)=> 
-    r._measurement == "market_data" and 
-    r._field == "pe" and 
-    r.company_id == "10001"
-)
-	`
+	query := fmt.Sprintf(`
+	from(bucket: "secondary_market")
+		|> range(start: %s, stop: %s)
+		|> filter(fn: (r) => r["_measurement"] == "market_data_v1")
+		|> filter(fn: (r) => r["_field"] == "pb")
+		|> filter(fn: (r) => r["security_entity_id"] == "01cc2c54-089b-494b-9c20-96bfd3028206")
+		|> mean()
+		`, utils.UnixFormat(startTime), utils.UnixFormat(endTime))
+
+	// if a > 0 {
+	// 	query = query + fmt.Sprintf(" |> filter(fn: (r) => r[\"_value\"] > 50)")
+	// }
+
 	// Get query client
 	queryAPI := client.QueryAPI(cfg.CONFIG.InfluxConfig.Org)
 
@@ -264,11 +403,55 @@ func queryData2(client influxdb2.Client) {
 	result, err := queryAPI.Query(context.Background(), query)
 
 	if err != nil {
+		log.Println(err)
 		return
 	}
 
 	for result.Next() {
-		fmt.Println(result.Record().Time().Local())
+		fmt.Printf("field: %+v, value: %+v\n", result.Record().Field(), Decimal(result.Record().Value().(float64)))
+		// fmt.Printf("time: %+v,field: %+v, value: %+v\n", result.Record().Time().Format("2006-01-02"), result.Record().Field(), result.Record().Value())
+	}
+}
+
+func Decimal(value float64) float64 {
+	return math.Trunc(value*1e2+0.5) * 1e-2
+}
+
+func DeleteData(client influxdb2.Client) {
+
+	client.BucketsAPI().CreateBucketWithNameWithID(context.Background(), cfg.CONFIG.InfluxConfig.Org, cfg.CONFIG.InfluxConfig.Bucket)
+
+	client.Options().HTTPOptions().HTTPClient().Timeout = 5 * time.Minute
+
+	start := time.Now()
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Minute))
+	defer cancel()
+
+	go doStuff(ctx)
+	deleteAPI := client.DeleteAPI()
+
+	err := deleteAPI.DeleteWithName(ctx, cfg.CONFIG.InfluxConfig.Org, cfg.CONFIG.InfluxConfig.Bucket, time.Now().AddDate(-20, 0, 0), time.Now(), "_measurement=market_data_v3")
+	if err != nil {
+		fmt.Printf("Error: %+v\n", err)
+		panic(err)
+	}
+
+	duration := time.Since(start)
+	fmt.Printf("duration: %+v\n", duration)
+
+}
+
+//每1秒work一下，同时会判断ctx是否被取消了，如果是就退出
+func doStuff(ctx context.Context) {
+	for {
+		time.Sleep(1 * time.Second)
+		select {
+		case <-ctx.Done():
+			log.Printf("done")
+			return
+		default:
+			log.Printf("work")
+		}
 	}
 }
 

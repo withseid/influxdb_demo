@@ -19,3 +19,7 @@ func ToTrueTime(date string) (time.Time, error) {
 	}
 	return time.Time{}, errors.New("time transcode error")
 }
+
+func UnixFormat(t int64) string {
+	return time.Unix(t, 0).Format("2006-01-02T15:04:05Z")
+}

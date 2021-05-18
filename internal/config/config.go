@@ -7,6 +7,12 @@ import (
 type ConfigType struct {
 	SecondaryMarketConfig cfg.MySQLConfiguration
 	InfluxConfig          cfg.InfluxConfiguration
+	SecondaryMarketIndex  SecondaryMarketIndexConfiguration
+	ESConfig              cfg.ESConfiguration
+}
+
+type SecondaryMarketIndexConfiguration struct {
+	EnterpriseIndex string
 }
 
 var CONFIG ConfigType

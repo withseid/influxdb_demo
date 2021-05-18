@@ -5,52 +5,63 @@ import (
 	"time"
 
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
-	"github.com/lee0720/nuwa/pkg/essentials"
 	uuid "github.com/satori/go.uuid"
 	"gitlab.com/lilh/influx-demo/internal/utils"
-	"gitlab.com/lilh/influx-demo/models"
+	"gitlab.mvalley.com/datapack/cain/pkg/bedrock"
+	"gitlab.mvalley.com/datapack/cain/pkg/essentials"
+	"gitlab.mvalley.com/secondary-market-datapack/a-share/pkg/models/security/market_data"
 )
 
-var BatchSize = 300
+var BatchSize = 5000
 
 func SyncMysqlData() error {
 	companyNameList, err := getCompanyNameList()
 	if err != nil {
 		return err
 	}
-	threadArray := make(chan struct{}, 10)
-	// var wg sync.WaitGroup
+
+	var sema = utils.NewSemaPhore(20)
 
 	errList := make([]error, 0)
 	for index, companyName := range companyNameList {
-
 		if index == 0 {
 			continue
 		}
 
-		marketDatas := make([]models.MarketData, 0)
-		// wg.Add(1)
-		threadArray <- struct{}{}
-		entityID := uuid.NewV4().String()
-		go func(Name string, ID string, cur int) {
+		marketDatas := make([]market_data.MarketData, 0)
+		sema.Add(1)
+
+		go func(Name string, cur int) {
 			defer func() {
-				// wg.Done()
-				<-threadArray
+				sema.Done()
 			}()
 
-			for i := 0; i < 1000; i++ {
-				recID := uuid.NewV4().String()
-				marketData := models.MarketData{
+			entityID := uuid.NewV4().String()
+			for i := 0; i < 30; i++ {
+
+				dateOn := time.Now().AddDate(0, 0, -i).Format("20060102")
+
+				pe := utils.GenFloatNum(0, 100)
+				pb := utils.GenFloatNum(0, 80)
+				ps := utils.GenFloatNum(0, 70)
+				pcf := utils.GenFloatNum(0, 70)
+
+				marketData := market_data.MarketData{
 					BasicModel: essentials.BasicModel{
-						RecID: recID,
+						RecID: uuid.NewV4().String(),
 					},
 
-					EntityID:   ID,
-					EntityName: Name,
-					PE:         utils.GenFloatNum(0, 100),
-					PB:         utils.GenFloatNum(0, 80),
-					PS:         utils.GenFloatNum(0, 70),
-					DateOn:     time.Now().AddDate(0, 0, -i).Format("20060102"),
+					SecurityID: entityID,
+
+					CurrencyWindID: "0",
+
+					PE:  pe,
+					PB:  pb,
+					PS:  ps,
+					PCF: pcf,
+
+					TransactionDate:           bedrock.Date(dateOn),
+					TransactionDateConfidence: 0,
 				}
 				marketDatas = append(marketDatas, marketData)
 			}
@@ -62,10 +73,10 @@ func SyncMysqlData() error {
 
 			fmt.Printf("第 %d 个公司, 名字是 %s 前 3 年数据插入完成\n", cur, Name)
 
-		}(companyName, entityID, index)
+		}(companyName, index)
 
 	}
-	// wg.Wait()
+	sema.Wait()
 	return utils.ErrListToError(errList)
 
 }
