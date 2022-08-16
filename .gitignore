@@ -1,0 +1,93 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+*test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Visual Studio Code & Goland
+.vscode/
+.idea
+
+# emacs
+*~
+
+# Configuration
+config*yml
+configs/config.conf
+
+# main
+main
+prof_server
+
+# mac os
+.DS_Store
+
+# data files
+*.csv
+*.json
+
+# test
+test/cmd/client
+test*
+test-*
+test/profile
+*.zip
+
+# log
+log
+*.log
+
+# tar
+*.tar
+
+configs
+pevc_plumber_cli
+pevc_plumber_cli.upx
+
+
+external_migrate
+external_migrate.upx
+
+pevc_plumber_delta_monitor_datapack
+pevc_plumber_delta_monitor_datapack.upx
+
+build_delta_update_datapack
+build_delta_update_datapack.upx
+
+pevc_plumber_ser_cli
+pevc_plumber_ser_cli.upx
+
+pevc_plumber_delta_update
+pevc_plumber_delta_update.upx
+
+pevc_plumber_delta_monitor_dataservice
+pevc_plumber_delta_monitor_dataservice.upx
+
+delta_migrate
+delta_migrate.upx
+cron
+preference_migate
+preference_migrate
+preferences_migrate
+*.tar
+*_test
+
+dataapp_service_plumber
+datapack_plumber
+data_check.md
+pack_and_service_plumber
+pack_hard_tech_plumber
+
+entity_role_migrate
+entity_role_migrate.upx
